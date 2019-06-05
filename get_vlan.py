@@ -42,6 +42,45 @@ def get_ip():
 	IPs_out = IPs.stdout.decode('utf8').strip().split()
 	return IPs_out
 
+def get_vlan_from_ssh(text):
+	"""
+	This function extract vlan id for each type of vlan from the input
+
+	Input : str
+
+	Example Input :
+	ESW1>show vlan-switch brief | inc active
+	1    default                          active    Fa1/0, Fa1/1, Fa1/2, Fa1/3
+	100  runt                             active
+	200  infra                            active
+	300  engineer                         active
+	1002 fddi-default                     active
+	1003 token-ring-default               active
+	1004 fddinet-default                  active
+	1005 trnet-default                    active
+
+	Output : dictionary with key:value pair as vlan_name:vlan_id
+	"""
+
+	vlan_dict = {}
+	for line in text.split('\n'):
+		#Needs to skip all lines till first line of VLAN shows
+		columns = line.split()
+		#print(columns)
+		if len(columns) < 3 or "active" not in columns[2]:
+			continue
+		if columns[0] in {'1', '1001', '1002', '1003', '1004', '1005'}:
+			continue
+		vlan_dict[columns[1]] = columns[0]
+	return vlan_dict
+
+def print_vlan(vlan_dict):
+	print("Printing output in print_vlan function ...")
+	print("------------------------------------------")
+	for item in vlan_dict.items():
+		print("VLAN ID for %s VLAN is %s" % (item[1], item[0]))
+
+
 def connect_ssh(ip):
 	client = paramiko.client.SSHClient()
 	client.load_system_host_keys()
@@ -49,7 +88,7 @@ def connect_ssh(ip):
 	try:
 		print("Connecting to %s" % ip)
 		client.connect(ip, username='thanakorn', password='cisco')
-		cmd_str = 'show vlan-switch brief'
+		cmd_str = 'show vlan-switch brief | inc active'
 		print("\nConnection to %s has been established. Executing %s ..." % (ip, cmd_str))
 		client_shell = client.invoke_shell()
 		out = client_shell.recv(1000)
@@ -57,9 +96,11 @@ def connect_ssh(ip):
 		client_shell.send(cmd_str + '\n')
 		time.sleep(2)
 		out = client_shell.recv(5000)
-		print(out.decode('utf8'))
+		hr_out = out.decode('utf8')
+		print(hr_out)
 		print("Connection is being terminated.")
 		client.close()
+		return hr_out
 
 	except paramiko.ssh_exception.AuthenticationException:
 		print("The connection to {} can not be authenticated, skipping ...".format(ip))
@@ -73,12 +114,6 @@ def connect_ssh(ip):
 	except:
 		print("SSH connection to {} fails due to socket error, skipping ...".format(ip))
 
-def get_vlan_from_ssh():
-	pass
-
-def extract_vlan():
-	pass
-
 def get_vlan_from_http():
 	pass
 
@@ -89,4 +124,7 @@ if __name__ == '__main__':
 	#Get IP data from a text file
 	IPs = get_ip()
 	for ip in IPs:
-		connect_ssh(ip)
+		raw_output = connect_ssh(ip)
+		if raw_output:
+			vlan_dict = get_vlan_from_ssh(raw_output)
+			#print_vlan(get_vlan_from_ssh(raw_output))
