@@ -126,5 +126,5 @@ if __name__ == '__main__':
 	for ip in IPs:
 		raw_output = connect_ssh(ip)
 		if raw_output:
-			vlan_dict = get_vlan_from_ssh(raw_output)
-			#print_vlan(get_vlan_from_ssh(raw_output))
+			#vlan_dict = get_vlan_from_ssh(raw_output)
+			print_vlan(get_vlan_from_ssh(raw_output))
