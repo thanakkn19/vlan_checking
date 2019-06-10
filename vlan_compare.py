@@ -179,6 +179,33 @@ def  get_hostname(text):
 	"""
 	return text[:text.find('>')]
 
+def adjust_vlan_database(json_dict):
+	"""
+	Adjust vlan from dictionary for each switch according to the vlan profile and return vlan dict
+
+	Input: json_dict (dict)
+	{
+		"accsw":{
+			"vlan_name": vlan_id
+			"vlan_profile": "profile_name"
+		},
+		"vlan_profile":{
+			"profile_name_1": {
+				"infra": vlan_id,
+				"engineer": vlan_id
+			}
+		}
+	}
+
+	Output: vlan_dict (dict)
+	key(str): value(int)
+	{
+		"vlan_name": vlan_id,
+		"vlan_name": vlan_id
+	}
+	"""
+	#[TODO]
+	pass
 
 if __name__ == '__main__':
 	#Get IP data from a text file
@@ -192,4 +219,6 @@ if __name__ == '__main__':
 			#print_vlan(ssh_get_vlanh(raw_output))
 	#Need to find a way to determine what IP addreses are working
 	vlan_database = http_get_vlan(active_IPs)
+	vlan_database = adjust_vlan_database(vlan_database)
 	accsw_vlan = vlan_database["accsw"]
+	#[TODO] : start checking VLAN config against VLAN database for each access switch
