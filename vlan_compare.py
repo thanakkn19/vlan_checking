@@ -188,6 +188,7 @@ if __name__ == '__main__':
 		raw_output = connect_ssh(ip)
 		hostname = get_hostname(raw_output[20])
 		if raw_output:
+<<<<<<< HEAD:vlan_compare.py
 			vlan_dict_ssh[hostname] = ssh_get_vlan(raw_output)
 			#print_vlan(ssh_get_vlanh(raw_output))
 	#Need to find a way to determine what IP addreses are working
@@ -195,3 +196,7 @@ if __name__ == '__main__':
 	accsw_vlan = vlan_database["accsw"]
 	for accsw in accsw_vlan:
 		if 
+=======
+			#vlan_dict = get_vlan_from_ssh(raw_output)
+			print_vlan(get_vlan_from_ssh(raw_output))
+>>>>>>> 2d04bb6d2f64feb6372bda642c9a804b77353148:get_vlan.py

@@ -1,0 +1,30 @@
+{
+	"accsw": {
+        	"R1": {
+                	"vlan-profile": "home-1",
+                	"override": {
+                        	"infra": 102
+                	}
+        	},
+        	"ESW1": {
+                	"vlan-profile": "home-1",
+                	"override": {
+                        	"runt": 203,
+                        	"engineer": 351,
+                        	"marketing": 400
+			}
+        	}
+	},
+	"vlan-profiles": {
+        	"home-1": {
+                	"infra": 100,
+                	"runt": 200,
+                	"engineer": 300
+        	},
+        	"home-2": {
+                	"infra": 101,
+                	"runt":201,
+                	"engineer":301
+        	}
+	}
+}
