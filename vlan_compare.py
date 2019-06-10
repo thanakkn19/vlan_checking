@@ -7,6 +7,8 @@
 import paramiko
 import subprocess
 import time
+import json
+import sys
 from account import account
 from functools import reduce
 
@@ -39,10 +41,10 @@ def get_ip():
 	print("Scanning subnet : %s" % subnet)
 
 	IPs = subprocess.run(['fping', '-aqg', subnet], stdout=subprocess.PIPE)
-	IPs_out = IPs.stdout.decode('utf8').strip().split()
-	return IPs_out
+	active_IPs = IPs.stdout.decode('utf8').strip().split()
+	return active_IPs
 
-def get_vlan_from_ssh(text):
+def ssh_get_vlan(text):
 	"""
 	This function extract vlan id for each type of vlan from the input
 
@@ -80,8 +82,59 @@ def print_vlan(vlan_dict):
 	for item in vlan_dict.items():
 		print("VLAN ID for %s VLAN is %s" % (item[1], item[0]))
 
+def http_get_vlan(IPs):
+	"""
+	This function tries to get vlan database in json format from a given list of potentail http server
+	Input: server_ip (str)
+	Output:
+	- None, if server_ip is not an actual http server
+	[TODO] : create a DNS map to automatically detect the http server address to eliminate the need to run this in a loop
+	- dict() containing the vlan database in json format
+	Output Example:
+	{
+		"accsw": {
+			"R1": {
+				"vlan-profile": "home-1",
+				"override": {
+					"infra": 102
+				}
+			}
+		},
+		"vlan-profiles": {
+			"home-1": {
+				"infra": 100,
+				"runt": 200,
+				"engineer": 300
+			}
+		}
+	}
+
+	"""
+	#server_ip = "192.168.204.162"
+	port = "8000"
+	for server_ip in IPs:
+		url = "http://" + server_ip + ":" + port + "/" + "port_info.json"
+		proc = subprocess.Popen(["curl", "-s", url], stdout=subprocess.PIPE)
+		(output_in_bytes,err) = proc.communicate()
+		try:
+			http_response = output_in_bytes.decode('utf8')
+			json_response = json.loads(http_response)
+			print("Parsing json data successful!!")
+			print(json_response)
+		except:
+			print("\nPort {} on {} is not opened, skipping this address ... \n".format(port, server_ip))
+			#sys.exit(1)
 
 def connect_ssh(ip):
+	"""
+	Receive IP address in string, try to log in to  such device using ssh,
+	and then execute a command to capture all the VLANs defined on the device
+
+	Input: ip (str)
+	Output: the result of show vlan brienf | include active (str)
+
+	Example: [TODO]
+	"""
 	client = paramiko.client.SSHClient()
 	client.load_system_host_keys()
 	client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy)
@@ -114,17 +167,31 @@ def connect_ssh(ip):
 	except:
 		print("SSH connection to {} fails due to socket error, skipping ...".format(ip))
 
-def get_vlan_from_http():
-	pass
+def  get_hostname(text):
+	"""
+	Parse a hostname from the string containing vlan data
 
-def main():
-	pass
+	Input: text (str)
+	Example:
+	R1>show switch-vlan brief | inc active
+
+	Output: hostname (str)
+	"""
+	return text[:text.find('>')]
+
 
 if __name__ == '__main__':
 	#Get IP data from a text file
-	IPs = get_ip()
-	for ip in IPs:
+	active_IPs = get_ip()
+	vlan_dict_ssh = {}
+	for ip in active_IPs:
 		raw_output = connect_ssh(ip)
+		hostname = get_hostname(raw_output[20])
 		if raw_output:
-			vlan_dict = get_vlan_from_ssh(raw_output)
-			#print_vlan(get_vlan_from_ssh(raw_output))
+			vlan_dict_ssh[hostname] = ssh_get_vlan(raw_output)
+			#print_vlan(ssh_get_vlanh(raw_output))
+	#Need to find a way to determine what IP addreses are working
+	vlan_database = http_get_vlan(active_IPs)
+	accsw_vlan = vlan_database["accsw"]
+	for accsw in accsw_vlan:
+		if 
