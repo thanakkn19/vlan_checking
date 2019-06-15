@@ -71,7 +71,7 @@ def ssh_get_vlan(text):
 		#print(columns)
 		if len(columns) < 3 or "active" not in columns[2]:
 			continue
-		if columns[0] in {'1', '1001', '1002', '1003', '1004', '1005'}:
+		if columns[0] in {'1', '1001', '1002', '1003', '1004', '1005','term'}:
 			continue
 		vlan_dict[columns[1]] = columns[0]
 	return vlan_dict
@@ -120,10 +120,9 @@ def http_get_vlan(IPs):
 			http_response = output_in_bytes.decode('utf8')
 			json_response = json.loads(http_response)
 			print("Parsing json data successful!!")
-			print(json_response)
+			return json_response
 		except:
 			print("\nPort {} on {} is not opened, skipping this address ... \n".format(port, server_ip))
-			#sys.exit(1)
 
 def connect_ssh(ip):
 	"""
@@ -167,7 +166,7 @@ def connect_ssh(ip):
 	except:
 		print("SSH connection to {} fails due to socket error, skipping ...".format(ip))
 
-def  get_hostname(text):
+def get_hostname(text):
 	"""
 	Parse a hostname from the string containing vlan data
 
@@ -179,15 +178,19 @@ def  get_hostname(text):
 	"""
 	return text[:text.find('>')]
 
-def adjust_vlan_database(json_dict):
+def adjust_vlan_database(json_dict, device):
 	"""
 	Adjust vlan from dictionary for each switch according to the vlan profile and return vlan dict
 
 	Input: json_dict (dict)
 	{
 		"accsw":{
-			"vlan_name": vlan_id
-			"vlan_profile": "profile_name"
+			"R1": {
+				"vlan_profile": "profile_name",
+				"override": {
+					"vlan_name": vlan_id
+				}
+			}
 		},
 		"vlan_profile":{
 			"profile_name_1": {
@@ -204,21 +207,41 @@ def adjust_vlan_database(json_dict):
 		"vlan_name": vlan_id
 	}
 	"""
-	#[TODO]
-	pass
+	get_device = json_dict.get("accsw").get(device)
+	profile = get_device.get("vlan-profile")
+	override = get_device.get("override", None)
+	get_profile = json_dict.get("vlan-profiles").get(profile)
+	if not override:
+		return get_profile
+	for item in override.items():
+		get_profile[item[0]] = item[1]
+	return get_profile
+
 
 if __name__ == '__main__':
-	#Get IP data from a text file
+	#Get IP data from a text file, search from all the alive devices which one allow SSH connections
 	active_IPs = get_ip()
+
+	#Gathering VLAN dictionaries for each live network device
 	vlan_dict_ssh = {}
+
 	for ip in active_IPs:
 		raw_output = connect_ssh(ip)
-		hostname = get_hostname(raw_output[20])
 		if raw_output:
+			hostname = get_hostname(raw_output[:20])
 			vlan_dict_ssh[hostname] = ssh_get_vlan(raw_output)
 			#print_vlan(ssh_get_vlanh(raw_output))
-	#Need to find a way to determine what IP addreses are working
+	#for item in vlan_dict_ssh.items():
+	#	print(item[0], item[1])
+
 	vlan_database = http_get_vlan(active_IPs)
-	vlan_database = adjust_vlan_database(vlan_database)
-	accsw_vlan = vlan_database["accsw"]
-	#[TODO] : start checking VLAN config against VLAN database for each access switch
+
+	#Get a list of all devices in our database
+	device_list = list(vlan_database.get("accsw").keys())
+	for device_name in device_list:
+		device_vlans = adjust_vlan_database(vlan_database, device_name)
+		print("VLAN Database for %s is " %device_name)
+		print(device_vlans)
+		print("VLAN from the live configs are :")
+		print(vlan_dict_ssh[device_name])
+
