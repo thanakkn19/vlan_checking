@@ -4,6 +4,7 @@ A small project to automate a task to compare the current VLAN configuration on 
 Dependencies:
 - python2 or python3
 - fping
+- curl
 - python libraries mentioned in requirements.txt
 
 How to:

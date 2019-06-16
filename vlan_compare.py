@@ -51,6 +51,7 @@ def ssh_get_vlan(text):
 	Input : str
 
 	Example Input :
+	term len 0
 	ESW1>show vlan-switch brief | inc active
 	1    default                          active    Fa1/0, Fa1/1, Fa1/2, Fa1/3
 	100  runt                             active
@@ -69,9 +70,7 @@ def ssh_get_vlan(text):
 		#Needs to skip all lines till first line of VLAN shows
 		columns = line.split()
 		#print(columns)
-		if len(columns) < 3 or "active" not in columns[2]:
-			continue
-		if columns[0] in {'1', '1001', '1002', '1003', '1004', '1005','term'}:
+		if len(columns) < 3 or "active" != columns[2] or  columns[0] in {'1', '1001', '1002', '1003', '1004', '1005'}:
 			continue
 		vlan_dict[columns[1]] = columns[0]
 	return vlan_dict
@@ -114,9 +113,9 @@ def http_get_vlan(IPs):
 	port = "8000"
 	for server_ip in IPs:
 		url = "http://" + server_ip + ":" + port + "/" + "port_info.json"
-		proc = subprocess.Popen(["curl", "-s", url], stdout=subprocess.PIPE)
-		(output_in_bytes,err) = proc.communicate()
 		try:
+			proc = subprocess.Popen(["curl", "-s", url], stdout=subprocess.PIPE)
+			(output_in_bytes,err) = proc.communicate()
 			http_response = output_in_bytes.decode('utf8')
 			json_response = json.loads(http_response)
 			print("Parsing json data successful!!")
@@ -176,7 +175,7 @@ def get_hostname(text):
 
 	Output: hostname (str)
 	"""
-	return text[:text.find('>')]
+	return text[text.find('\n')+1:text.find('>')]
 
 def adjust_vlan_database(json_dict, device):
 	"""
@@ -229,6 +228,7 @@ if __name__ == '__main__':
 		raw_output = connect_ssh(ip)
 		if raw_output:
 			hostname = get_hostname(raw_output[:20])
+			print("hostname is %s" % hostname)
 			vlan_dict_ssh[hostname] = ssh_get_vlan(raw_output)
 			#print_vlan(ssh_get_vlanh(raw_output))
 	#for item in vlan_dict_ssh.items():
