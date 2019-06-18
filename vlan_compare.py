@@ -72,7 +72,7 @@ def ssh_get_vlan(text):
 		#print(columns)
 		if len(columns) < 3 or "active" != columns[2] or  columns[0] in {'1', '1001', '1002', '1003', '1004', '1005'}:
 			continue
-		vlan_dict[columns[1]] = columns[0]
+		vlan_dict[columns[1]] = int(columns[0])
 	return vlan_dict
 
 def print_vlan(vlan_dict):
@@ -178,20 +178,20 @@ def get_hostname(text):
 	return text[text.find('\n')+1:text.find('>')]
 
 def adjust_vlan_database(json_dict, device):
-	"""
+	""" 
 	Adjust vlan from dictionary for each switch according to the vlan profile and return vlan dict
 
 	Input: json_dict (dict)
 	{
 		"accsw":{
 			"R1": {
-				"vlan_profile": "profile_name",
+				"vlan-profile": "profile_name",
 				"override": {
 					"vlan_name": vlan_id
 				}
 			}
 		},
-		"vlan_profile":{
+		"vlan-profiles":{
 			"profile_name_1": {
 				"infra": vlan_id,
 				"engineer": vlan_id
@@ -207,13 +207,13 @@ def adjust_vlan_database(json_dict, device):
 	}
 	"""
 	get_device = json_dict.get("accsw").get(device)
-	profile = get_device.get("vlan-profile")
+	profile = get_device.get("vlan-profile", None)
 	override = get_device.get("override", None)
 	get_profile = json_dict.get("vlan-profiles").get(profile)
 	if not override:
 		return get_profile
-	for item in override.items():
-		get_profile[item[0]] = item[1]
+	for vlan, vlan_id in override.items():
+		get_profile[vlan] = vlan_id
 	return get_profile
 
 
@@ -230,18 +230,40 @@ if __name__ == '__main__':
 			hostname = get_hostname(raw_output[:20])
 			print("hostname is %s" % hostname)
 			vlan_dict_ssh[hostname] = ssh_get_vlan(raw_output)
-			#print_vlan(ssh_get_vlanh(raw_output))
-	#for item in vlan_dict_ssh.items():
-	#	print(item[0], item[1])
 
 	vlan_database = http_get_vlan(active_IPs)
-
+	print("VLAN database from http is ", vlan_database)
 	#Get a list of all devices in our database
 	device_list = list(vlan_database.get("accsw").keys())
+	print(device_list)
 	for device_name in device_list:
-		device_vlans = adjust_vlan_database(vlan_database, device_name)
-		print("VLAN Database for %s is " %device_name)
-		print(device_vlans)
-		print("VLAN from the live configs are :")
-		print(vlan_dict_ssh[device_name])
+		device_vlans_dict = adjust_vlan_database(vlan_database, device_name)
+		print(device_name)
+		print("VLAN Database: ", device_vlans_dict)
+		print("VLAN Configured: ", vlan_dict_ssh[device_name])
+		""" 
+		#Need to look for matching VLANs
+		vlan_list = list(device_vlans_dict.keys())
+		for vlan_name in vlan_list:
+			vlan_id_from_dict_ssh = vlan_dict_ssh[device_name].get(vlan_name, None)
+
+			#If the VLAN exists on the device and the database
+			if vlan_id_from_dict_ssh:
+				device_vlan = device_vlans_dict.get(vlan_name, None)
+				#If VLAN IDs dont' match
+				if vlan_id_from_dict_ssh != device_vlan:
+					print("%s --- VLAN Mismatched: %s VLAN is configured as %d on %s, but it is %d on port_info.json" % (device_name, vlan_name, vlan_id_from_dict_ssh, device_name, device_vlan))
+			else:
+
+				#If the VLAN only exists on the database but not on the device
+				print("%s --- VLAN Missing: %s VLAN is not configured on the device" % (device_name, vlan_name))
+
+		#If there's any VLANs configured on the switch that are not in the database
+		extra_vlans = set(vlan_dict_ssh[device_name]) - set(vlan_list)
+		if extra_vlans != {}:
+			print("%s --- Unauthorized VLAN exists: The following VLAN(s) exist but are not defined on the database. Please remove them or update the database!!!" % device_name)
+			for vlan_name in extra_vlans:
+				print("       - %s : %d" %(vlan_name, vlan_dict_ssh.get(device_name).get(vlan_name)))
+		print("\n")
+		"""
 
