@@ -9,6 +9,7 @@ import subprocess
 import time
 import json
 import sys
+import requests
 from account import account
 from functools import reduce
 
@@ -81,8 +82,8 @@ def print_vlan(vlan_dict):
 	for item in vlan_dict.items():
 		print("VLAN ID for %s VLAN is %s" % (item[1], item[0]))
 
-def http_get_vlan(IPs):
-	"""
+def http_get_vlan(IPs, method="requests"):
+	""" 
 	This function tries to get vlan database in json format from a given list of potentail http server
 	Input: server_ip (str)
 	Output:
@@ -107,21 +108,27 @@ def http_get_vlan(IPs):
 			}
 		}
 	}
-
 	"""
 	#server_ip = "192.168.204.162"
 	port = "8000"
 	for server_ip in IPs:
 		url = "http://" + server_ip + ":" + port + "/" + "port_info.json"
-		try:
-			proc = subprocess.Popen(["curl", "-s", url], stdout=subprocess.PIPE)
-			(output_in_bytes,err) = proc.communicate()
-			http_response = output_in_bytes.decode('utf8')
-			json_response = json.loads(http_response)
-			print("Parsing json data successful!!")
-			return json_response
-		except:
+		response = requests.get(url)
+		if response.status_code == 200:
+			output = response.json()
+			return output
+		else:
 			print("\nPort {} on {} is not opened, skipping this address ... \n".format(port, server_ip))
+			continue
+		""" 
+		response = subprocess.Popen(["curl", "-s", url], stdout=subprocess.PIPE)
+		returncode = response.returncode
+		(output_in_bytes,err) = proc.communicate()
+		http_response = output_in_bytes.decode('utf8')
+		json_response = json.loads(http_response)
+		print("Parsing json data successful!!")
+		return json_response
+ 		"""
 
 def connect_ssh(ip):
 	"""
