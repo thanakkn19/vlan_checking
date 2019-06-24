@@ -113,11 +113,13 @@ def http_get_vlan(IPs, method="requests"):
 	port = "8000"
 	for server_ip in IPs:
 		url = "http://" + server_ip + ":" + port + "/" + "port_info.json"
-		response = requests.get(url)
-		if response.status_code == 200:
-			output = response.json()
-			return output
-		else:
+		try:
+			response = requests.get(url)
+			if response.status_code == 200:
+				output = response.json()
+				return output
+			print("Request failed. Error code: ",response.status_code)
+		except:
 			print("\nPort {} on {} is not opened, skipping this address ... \n".format(port, server_ip))
 			continue
 		""" 
