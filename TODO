@@ -1,0 +1,6 @@
+Next thing to do
+1. make the code except a textfile name as an argument, this textfile will contain a list of devices to lookup for consistencies
+2. create a DNS server that work ins DHCP settings, possibly with the aid of SNMP/Netconf on the network devices
+3. Refracture the code to make it OOP and more reader-friendly
+4. (Optional) multithreading
+5. (Optional) allow verbose and quiet mode 
