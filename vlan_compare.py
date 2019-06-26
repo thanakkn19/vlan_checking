@@ -9,6 +9,7 @@ import subprocess
 import time
 import json
 import sys
+import getopt
 import requests
 from account import account
 from functools import reduce
@@ -226,10 +227,33 @@ def adjust_vlan_database(json_dict, device):
 		c_get_profile[vlan] = vlan_id
 	return c_get_profile
 
+def usage(type=0):
+	if type == 1:
+		print("Invalid option!")
+	print("Usage: python vlan_compare.py or python vlan_compare.py -f <devicefile>")
 
-if __name__ == '__main__':
-	#Get IP data from a text file, search from all the alive devices which one allow SSH connections
-	active_IPs = get_ip()
+def get_ip_from_list():
+	
+
+def main(argv):
+
+	if len(argv) == 1:
+		#Get IP data from a text file, search from all the alive devices which one allow SSH connections
+		active_IPs = get_ip()
+	else:
+		devicefile = ''
+		try:
+			opts, args = getopt.getopt
+		except:
+			usage()
+			sys.exit(2)
+		for opt, arg in opts:
+			if opt in ('-f', '--file'):
+				devicefile = arg
+			else:
+				usage(1)
+				sys.exit(2)
+		active_IPs = get_ip_from_list(devicefile)
 
 	#Gathering VLAN dictionaries for each live network device
 	vlan_config_dict = {}
@@ -275,4 +299,5 @@ if __name__ == '__main__':
 			for vlan_name in extra_vlans:
 				print("       - %s : %d" %(vlan_name, vlan_config_dict.get(device_name).get(vlan_name)))
 		print("\n")
-
+if __name__ == "__main__":
+	main(sys.argv[1:])
