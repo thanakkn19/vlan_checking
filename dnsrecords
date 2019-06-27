@@ -1,0 +1,8 @@
+#These records need to be added to /etc/hosts
+
+192.168.1.1 R2.home R2
+192.168.1.2 dns.home dns
+192.168.1.10 R1.home R1
+192.168.1.11 ESW1.home ESW1
+192.168.1.3 httpserver.home httpserver
+

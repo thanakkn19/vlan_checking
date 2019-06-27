@@ -8,7 +8,7 @@ import paramiko
 import subprocess
 import time
 import json
-import sys
+import sys, os
 import getopt
 import requests
 from account import account
@@ -32,8 +32,8 @@ def get_ip():
 	This function extracts the local IP and sub network
 	from "ifconfig", and then return a list of live IP addresses
 	in the subnet
+	It is only used when this program is called without a devicefile option
 	Output : list of IP addresses as strings
-	[TODO]: create a DNS records to maintain dynamic IP addresses for network devices, this function would make a call for DNS service to resolve the IP address
 	"""
 	result = subprocess.run(['ifconfig', 'eth0'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 	myip = get_pattern("inet addr:", result.stdout, ' ')
@@ -83,13 +83,12 @@ def print_vlan(vlan_dict):
 	for item in vlan_dict.items():
 		print("VLAN ID for %s VLAN is %s" % (item[1], item[0]))
 
-def http_get_vlan(IPs, method="requests"):
+def http_get_vlan(IPs, server_ip="192.168.1.3"):
 	""" 
 	This function tries to get vlan database in json format from a given list of potentail http server
 	Input: server_ip (str)
 	Output:
 	- None, if server_ip is not an actual http server
-	[TODO] : create a DNS map to automatically detect the http server address to eliminate the need to run this in a loop
 	- dict() containing the vlan database in json format
 	Output Example:
 	{
@@ -110,28 +109,26 @@ def http_get_vlan(IPs, method="requests"):
 		}
 	}
 	"""
-	#server_ip = "192.168.204.162"
 	port = "8000"
-	for server_ip in IPs:
-		url = "http://" + server_ip + ":" + port + "/" + "port_info.json"
-		try:
-			response = requests.get(url)
-			if response.status_code == 200:
-				output = response.json()
-				return output
-			print("Request failed. Error code: ",response.status_code)
-		except:
-			print("\nPort {} on {} is not opened, skipping this address ... \n".format(port, server_ip))
-			continue
-		""" 
-		response = subprocess.Popen(["curl", "-s", url], stdout=subprocess.PIPE)
-		returncode = response.returncode
-		(output_in_bytes,err) = proc.communicate()
-		http_response = output_in_bytes.decode('utf8')
-		json_response = json.loads(http_response)
-		print("Parsing json data successful!!")
-		return json_response
- 		"""
+	url = "http://" + server_ip + ":" + port + "/" + "port_info.json"
+	try:
+		response = requests.get(url)
+		if response.status_code == 200:
+			output = response.json()
+			return output
+		print("Request failed. Error code: ",response.status_code)
+	except:
+		print("\nPort {} on {} is not opened, skipping this address ... \n".format(port, server_ip))
+
+	""" 
+	response = subprocess.Popen(["curl", "-s", url], stdout=subprocess.PIPE)
+	returncode = response.returncode
+	(output_in_bytes,err) = proc.communicate()
+	http_response = output_in_bytes.decode('utf8')
+	json_response = json.loads(http_response)
+	print("Parsing json data successful!!")
+	return json_response
+ 	"""
 
 def connect_ssh(ip):
 	""" 
@@ -159,7 +156,7 @@ def connect_ssh(ip):
 		out = client_shell.recv(5000)
 		hr_out = out.decode('utf8')
 		print(hr_out)
-		print("Connection is being terminated.")
+		print("Connection is being terminated.\n")
 		client.close()
 		return hr_out
 
@@ -229,22 +226,20 @@ def adjust_vlan_database(json_dict, device):
 
 def usage(type=0):
 	if type == 1:
-		print("Invalid option!")
-	print("Usage: python vlan_compare.py or python vlan_compare.py -f <devicefile>")
-
-def get_ip_from_list():
-	
+		print("\nInvalid option!")
+	print("\nUsage: python vlan_compare.py or python vlan_compare.py -f <devicefile>\n")
 
 def main(argv):
 
-	if len(argv) == 1:
+	devices = []
+	if len(argv) == 0:
 		#Get IP data from a text file, search from all the alive devices which one allow SSH connections
-		active_IPs = get_ip()
+		devices = get_ip()
 	else:
 		devicefile = ''
 		try:
-			opts, args = getopt.getopt
-		except:
+			opts, args = getopt.getopt(argv, "f:",["file="])
+		except getopt.GetoptError:
 			usage()
 			sys.exit(2)
 		for opt, arg in opts:
@@ -253,23 +248,26 @@ def main(argv):
 			else:
 				usage(1)
 				sys.exit(2)
-		active_IPs = get_ip_from_list(devicefile)
+		if not os.path.isfile(devicefile):
+			print("\n{} is not a valid filename in the current working directory.\n".format(devicefile))
+			sys.exit()
+		with open(devicefile, 'r') as file:
+			devices = [x.strip('\n') for x in file.readlines() if x != '\n']
+
 
 	#Gathering VLAN dictionaries for each live network device
 	vlan_config_dict = {}
 
-	for ip in active_IPs:
+	for ip in devices:
 		raw_output = connect_ssh(ip)
 		if raw_output:
 			hostname = get_hostname(raw_output[:20])
-			print("hostname is %s" % hostname)
 			vlan_config_dict[hostname] = ssh_get_vlan(raw_output)
 
-	vlan_database_dict = http_get_vlan(active_IPs)
+	vlan_database_dict = http_get_vlan(devices)
 
 	#Get a list of all devices in our database
 	device_list = list(vlan_database_dict.get("accsw").keys())
-	print(device_list)
 	for device_name in device_list:
 		device_vlans_dict = adjust_vlan_database(vlan_database_dict, device_name)
 
@@ -290,14 +288,12 @@ def main(argv):
 				print("%s --- VLAN Missing: %s VLAN is not configured on the device" % (device_name, vlan_name))
 
 		#If there's any VLANs configured on the switch that are not in the database
-		#print("vlan configured: ", set(vlan_config_dict[device_name]))
-		#print("vlan from DB: ", set(vlan_list))
 		extra_vlans = set(vlan_config_dict[device_name]) - set(vlan_list)
-		#print("extra vlans are :", extra_vlans)
 		if extra_vlans != set():
 			print("%s --- Unauthorized VLAN exists: The following VLAN(s) exist but are not defined on the database. Please remove them or update the database!!!" % device_name)
 			for vlan_name in extra_vlans:
 				print("       - %s : %d" %(vlan_name, vlan_config_dict.get(device_name).get(vlan_name)))
 		print("\n")
+
 if __name__ == "__main__":
 	main(sys.argv[1:])
